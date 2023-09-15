@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Face Recognition Webcam</title>
+</head>
+<body>
+    <h1>Face Recognition Webcam</h1>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="photo-canvas"></canvas>
+    <button id="start-capture">Start Capture</button>
+    <button id="stop-capture">Stop Capture</button>
+    <button id="send-button">Send to Server</button>
+    
+    <h2>Matched Photos:</h2>
+    <div id="matched-photos" style="display: flex; flex-wrap: wrap;"></div>
+
+    <script>
+        const startButton = document.getElementById('start-capture');
+        const stopButton = document.getElementById('stop-capture');
+        const webcam = document.getElementById('webcam');
+        const canvas = document.getElementById('photo-canvas');
+        const sendButton = document.getElementById('send-button');
+        const matchedPhotosDiv = document.getElementById('matched-photos');
+
+        let stream, isCapturing = false;
+
+        startButton.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                webcam.srcObject = stream;
+                isCapturing = true;
+                startButton.style.display = 'none';
+                stopButton.style.display = 'block';
+                sendButton.style.display = 'block';
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                webcam.srcObject = null;
+                isCapturing = false;
+                startButton.style.display = 'block';
+                stopButton.style.display = 'none';
+                sendButton.style.display = 'none';
+            }
+        });
+
+        sendButton.addEventListener('click', () => {
+            if (isCapturing) {
+                canvas.width = webcam.videoWidth;
+                canvas.height = webcam.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(webcam, 0, 0, canvas.width, canvas.height);
+
+                // Convert canvas content to Blob and send to server
+                canvas.toBlob(blob => {
+                    const formData = new FormData();
+                    formData.append('image', blob);
+
+                    fetch('http://127.0.0.1:5000/verify', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data.message);
+
+                        // Clear previous matched photos
+                        matchedPhotosDiv.innerHTML = '';
+
+                        data.matches.forEach(matchedPhoto => {
+                            // Create and configure the image element
+                            const img = document.createElement('img');
+                            img.src = 'data:image/jpeg;base64,' + matchedPhoto;
+                            img.style.width = '150px'; // You can adjust the width as needed
+                            img.style.margin = '5px'; // Add some margin between images
+
+                            // Append the image to the matched photos div
+                            matchedPhotosDiv.appendChild(img);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }, 'image/jpeg');
+            }
+        });
+    </script>
+</body>
+</html>
